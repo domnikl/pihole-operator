@@ -1,0 +1,23 @@
+# permissions for end users to view dnsnames.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: pihole-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: dnsname-viewer-role
+rules:
+- apiGroups:
+  - networking.liebler.dev
+  resources:
+  - dnsnames
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.liebler.dev
+  resources:
+  - dnsnames/status
+  verbs:
+  - get

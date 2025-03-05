@@ -1,0 +1,15 @@
+meta {
+  name: create CNAME
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{base-url}}/api/config/dns/cnameRecords/test,foobar
+  body: none
+  auth: none
+}
+
+headers {
+  sid: {{sid}}
+}

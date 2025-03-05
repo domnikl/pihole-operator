@@ -1,0 +1,11 @@
+apiVersion: networking.liebler.dev/v1alpha1
+kind: DNSName
+metadata:
+  labels:
+    app.kubernetes.io/name: pihole-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: dnsname-sample
+spec:
+  type: CNAME
+  domain: foobar.de
+  target: homelab

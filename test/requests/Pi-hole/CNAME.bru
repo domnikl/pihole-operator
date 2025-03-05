@@ -1,0 +1,15 @@
+meta {
+  name: CNAME
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base-url}}/api/config/dns/cnameRecords
+  body: none
+  auth: none
+}
+
+headers {
+  sid: {{sid}}
+}

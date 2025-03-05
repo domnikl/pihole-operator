@@ -1,0 +1,15 @@
+meta {
+  name: Hosts
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base-url}}/api/config/dns/hosts
+  body: none
+  auth: none
+}
+
+headers {
+  sid: {{sid}}
+}

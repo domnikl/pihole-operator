@@ -1,0 +1,15 @@
+meta {
+  name: Sessions
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{base-url}}/api/auth/sessions
+  body: none
+  auth: none
+}
+
+headers {
+  sid: {{sid}}
+}

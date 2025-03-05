@@ -1,0 +1,11 @@
+meta {
+  name: Check if authentication is required
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base-url}}/api/auth
+  body: none
+  auth: none
+}

@@ -1,0 +1,15 @@
+meta {
+  name: delete CNAME
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{base-url}}/api/config/dns/cnameRecords/minio.liebler.dev,homelab
+  body: none
+  auth: none
+}
+
+headers {
+  sid: {{sid}}
+}
