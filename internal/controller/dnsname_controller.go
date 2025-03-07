@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -27,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/domnikl/pihole-operator/api/v1alpha1"
 	networkingv1alpha1 "github.com/domnikl/pihole-operator/api/v1alpha1"
 	"github.com/domnikl/pihole-operator/internal/pihole"
 )
@@ -70,6 +72,13 @@ func (r *DNSNameReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	reqLogger.Info("Reconciling DNSName", "Name", dnsName.Name)
 
+	dnsName.Status.Conditions = append(dnsName.Status.Conditions, v1.Condition{
+		Type:    "Pending",
+		Status:  v1.ConditionTrue,
+		Reason:  "Pending",
+		Message: "DNS record is pending",
+	})
+
 	records, err := r.PiHole.GetDNSRecords()
 	if err != nil {
 		reqLogger.Error(err, "Failed to get DNS records")
@@ -83,11 +92,34 @@ func (r *DNSNameReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	err = r.PiHole.CreateDNSRecord(dnsName.Spec.Domain, dnsName.Spec.Target)
+	if dnsName.Spec.Type == v1alpha1.A {
+		if dnsName.Spec.TargetIP == nil {
+			reqLogger.Info("TargetIP is required for A records")
+			return ctrl.Result{}, nil
+		}
+
+		err = r.PiHole.CreateDNSARecord(dnsName.Spec.Domain, *dnsName.Spec.TargetIP)
+	} else if dnsName.Spec.Type == v1alpha1.CName {
+		err = r.PiHole.CreateDNSCNAMERecord(dnsName.Spec.Domain, dnsName.Spec.Target, dnsName.Spec.TTL)
+	} else {
+		reqLogger.Info("Invalid DNS record type")
+		return ctrl.Result{}, nil
+	}
+
 	if err != nil {
 		reqLogger.Error(err, "Failed to create DNS record")
 		return ctrl.Result{}, err
 	}
+
+	r.Recorder.Event(dnsName, "Normal", "Created", "Successfully created DNS record")
+
+	// Update the status of the DNSName resource
+	dnsName.Status.Conditions = append(dnsName.Status.Conditions, v1.Condition{
+		Type:    "Created",
+		Status:  v1.ConditionTrue,
+		Reason:  "Created",
+		Message: "Successfully created DNS record",
+	})
 
 	reqLogger.Info("Successfully created DNS record")
 

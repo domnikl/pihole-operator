@@ -29,15 +29,22 @@ type DNSNameSpec struct {
 
 	// Type is the type of the DNSName
 	// +kubebuilder:validation:Enum=CNAME;A
-	Type string `json:"type,omitempty"`
+	Type DNSRecordType `json:"type"`
 
 	// Domain is the source domain of the DNSName
 	// +kubebuilder:validation:Format=hostname
-	Domain string `json:"domain,omitempty"`
+	Domain string `json:"domain"`
 
 	// Target is the target of the DNSName
 	// +kubebuilder:validation:Format=hostname
 	Target string `json:"target,omitempty"`
+
+	// IP is the IPv4 or IPv6 of the type A DNSName (only applies to A records)
+	TargetIP *IPAddressStr `json:"targetIP,omitempty"`
+
+	// TTL is the TTL of the DNSName (only applies to CNAME records)
+	// +kubebuilder:validation:Minimum=0
+	TTL *int32 `json:"ttl,omitempty"`
 }
 
 // DNSNameStatus defines the observed state of DNSName

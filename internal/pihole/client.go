@@ -8,19 +8,14 @@ import (
 	"log"
 	"net/http"
 	"strings"
-)
 
-type DNSRecordType string
-
-const (
-	CName DNSRecordType = "CNAME"
-	A     DNSRecordType = "A"
+	"github.com/domnikl/pihole-operator/api/v1alpha1"
 )
 
 type DNSRecord struct {
 	Domain string
 	Target string
-	Type   DNSRecordType
+	Type   v1alpha1.DNSRecordType
 }
 
 type PiHole struct {
@@ -39,6 +34,28 @@ func NewPiHole(url string, appPassword string) *PiHole {
 }
 
 func (p *PiHole) GetDNSRecords() ([]DNSRecord, error) {
+	var records []DNSRecord
+
+	// A Records
+	aRecords, err := p.getARecords()
+	if err != nil {
+		return nil, err
+	}
+
+	records = append(records, aRecords...)
+
+	// CNAME Records
+	cnameRecords, err := p.getCNames()
+	if err != nil {
+		return nil, err
+	}
+
+	records = append(records, cnameRecords...)
+
+	return records, nil
+}
+
+func (p *PiHole) getCNames() ([]DNSRecord, error) {
 	resp, err := p.doAuthenticatedRequest(http.MethodGet, "/config/dns/cnameRecords", nil)
 	if err != nil {
 		return nil, err
@@ -69,22 +86,79 @@ func (p *PiHole) GetDNSRecords() ([]DNSRecord, error) {
 		recordsList = append(recordsList, DNSRecord{
 			Domain: parts[0],
 			Target: parts[1],
-			Type:   CName,
+			Type:   v1alpha1.CName,
 		})
 	}
 
 	return recordsList, nil
 }
 
-func (p *PiHole) CreateDNSRecord(domain string, ip string) error {
-	resp, err := p.doAuthenticatedRequest(http.MethodPut, fmt.Sprintf("/config/dns/cnameRecords/%s,%s", domain, ip), nil)
+func (p *PiHole) getARecords() ([]DNSRecord, error) {
+	resp, err := p.doAuthenticatedRequest(http.MethodGet, "/config/dns/hosts", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get DNS records with status code %d", resp.StatusCode)
+	}
+
+	type response struct {
+		Config struct {
+			DNS struct {
+				Hosts []string `json:"hosts"`
+			} `json:"dns"`
+		} `json:"config"`
+	}
+
+	var records response
+	if err := json.NewDecoder(resp.Body).Decode(&records); err != nil {
+		return nil, err
+	}
+
+	var recordsList []DNSRecord
+	for _, record := range records.Config.DNS.Hosts {
+		parts := strings.Split(record, " ")
+
+		recordsList = append(recordsList, DNSRecord{
+			Target: parts[0],
+			Domain: parts[1],
+			Type:   v1alpha1.A,
+		})
+	}
+
+	return recordsList, nil
+}
+
+func (p *PiHole) CreateDNSCNAMERecord(domain string, target string, ttl *int32) error {
+	record := fmt.Sprintf("%s,%s", domain, target)
+	if ttl != nil {
+		record = fmt.Sprintf("%s,%s,%d", domain, target, *ttl)
+	}
+
+	resp, err := p.doAuthenticatedRequest(http.MethodPut, fmt.Sprintf("/config/dns/cnameRecords/%s", record), nil)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("failed to create DNS record with status code %d", resp.StatusCode)
+		return fmt.Errorf("failed to create DNS CNAME record with status code %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (p *PiHole) CreateDNSARecord(domain string, ip v1alpha1.IPAddressStr) error {
+	resp, err := p.doAuthenticatedRequest(http.MethodPut, fmt.Sprintf("/config/dns/hosts/%s %s", ip, domain), nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("failed to create DNS A record with status code %d", resp.StatusCode)
 	}
 
 	return nil
