@@ -44,8 +44,8 @@ spec:
                 format: hostname
                 type: string
               target:
-                description: Target is the target of the DNSName
-                format: hostname
+                description: Target is the target of a CNAME record
+                pattern: ((^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$))
                 type: string
               targetIP:
                 description: IP is the IPv4 or IPv6 of the type A DNSName (only applies

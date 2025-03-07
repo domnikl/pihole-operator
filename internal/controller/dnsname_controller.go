@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/domnikl/pihole-operator/api/v1alpha1"
 	networkingv1alpha1 "github.com/domnikl/pihole-operator/api/v1alpha1"
 	"github.com/domnikl/pihole-operator/internal/pihole"
 )
@@ -113,27 +112,31 @@ func (r *DNSNameReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	newRecord, err := pihole.NewDNSRecordFromSpec(dnsName.Spec)
+	if err != nil {
+		reqLogger.Error(err, "Failed to create DNS record from spec")
+		return ctrl.Result{}, err
+	}
+
 	for _, record := range records {
-		if record.Domain == dnsName.Spec.Domain {
-			reqLogger.Info("DNS record already exists")
-			return ctrl.Result{}, nil
+		if record.Domain == newRecord.Domain {
+			if record.Equals(newRecord) {
+				reqLogger.Info("DNS record already exists")
+				return ctrl.Result{}, nil
+			}
+
+			reqLogger.Info("DNS record needs update")
+
+			err = r.PiHole.DeleteDNSRecord(record)
+			if err != nil {
+				reqLogger.Error(err, "Failed to delete DNS record")
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
-	if dnsName.Spec.Type == v1alpha1.A {
-		if dnsName.Spec.TargetIP == nil {
-			reqLogger.Info("TargetIP is required for A records")
-			return ctrl.Result{}, nil
-		}
-
-		err = r.PiHole.CreateDNSARecord(dnsName.Spec.Domain, *dnsName.Spec.TargetIP)
-	} else if dnsName.Spec.Type == v1alpha1.CName {
-		err = r.PiHole.CreateDNSCNAMERecord(dnsName.Spec.Domain, dnsName.Spec.Target, dnsName.Spec.TTL)
-	} else {
-		reqLogger.Info("Invalid DNS record type")
-		return ctrl.Result{}, nil
-	}
-
+	// Create the DNS record
+	err = r.PiHole.CreateDNSRecord(*newRecord)
 	if err != nil {
 		reqLogger.Error(err, "Failed to create DNS record")
 		return ctrl.Result{}, err

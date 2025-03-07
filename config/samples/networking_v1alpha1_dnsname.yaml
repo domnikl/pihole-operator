@@ -9,7 +9,7 @@ spec:
   type: CNAME
   domain: foobar.de
   target: homelab
-  ttl: 300
+  ttl: 500
 ---
 # IPv4 example
 apiVersion: networking.liebler.dev/v1alpha1

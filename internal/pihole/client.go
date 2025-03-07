@@ -13,13 +13,6 @@ import (
 	"github.com/domnikl/pihole-operator/api/v1alpha1"
 )
 
-type DNSRecord struct {
-	Domain string
-	Target string
-	Type   v1alpha1.DNSRecordType
-	TTL    *int32
-}
-
 type PiHole struct {
 	// URL is the URL of the PiHole API
 	URL string
@@ -146,7 +139,17 @@ func (p *PiHole) getARecords() ([]DNSRecord, error) {
 	return recordsList, nil
 }
 
-func (p *PiHole) CreateDNSCNAMERecord(domain string, target string, ttl *int32) error {
+func (p *PiHole) CreateDNSRecord(record DNSRecord) error {
+	if record.Type == v1alpha1.A {
+		return p.createDNSARecord(record.Domain, v1alpha1.IPAddressStr(record.Target))
+	} else if record.Type == v1alpha1.CName {
+		return p.createDNSCNAMERecord(record.Domain, record.Target, record.TTL)
+	}
+
+	return fmt.Errorf("invalid DNS record type %s", record.Type)
+}
+
+func (p *PiHole) createDNSCNAMERecord(domain string, target string, ttl *int32) error {
 	record := fmt.Sprintf("%s,%s", domain, target)
 	if ttl != nil {
 		record = fmt.Sprintf("%s,%s,%d", domain, target, *ttl)
@@ -165,7 +168,7 @@ func (p *PiHole) CreateDNSCNAMERecord(domain string, target string, ttl *int32) 
 	return nil
 }
 
-func (p *PiHole) CreateDNSARecord(domain string, ip v1alpha1.IPAddressStr) error {
+func (p *PiHole) createDNSARecord(domain string, ip v1alpha1.IPAddressStr) error {
 	resp, err := p.doAuthenticatedRequest(http.MethodPut, fmt.Sprintf("/config/dns/hosts/%s %s", ip, domain), nil)
 	if err != nil {
 		return err

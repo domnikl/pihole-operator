@@ -4,6 +4,10 @@ package v1alpha1
 // IPAddress is used for validation of an IP address.
 type IPAddressStr string
 
+// +kubebuilder:validation:Pattern="((^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\\-]*[A-Za-z0-9])$))"
+// Hostname is used for validation of a hostname.
+type Hostname string
+
 type DNSRecordType string
 
 const (

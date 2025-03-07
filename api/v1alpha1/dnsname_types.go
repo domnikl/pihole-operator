@@ -35,9 +35,8 @@ type DNSNameSpec struct {
 	// +kubebuilder:validation:Format=hostname
 	Domain string `json:"domain"`
 
-	// Target is the target of the DNSName
-	// +kubebuilder:validation:Format=hostname
-	Target string `json:"target,omitempty"`
+	// Target is the target of a CNAME record
+	Target *Hostname `json:"target,omitempty"`
 
 	// IP is the IPv4 or IPv6 of the type A DNSName (only applies to A records)
 	TargetIP *IPAddressStr `json:"targetIP,omitempty"`
