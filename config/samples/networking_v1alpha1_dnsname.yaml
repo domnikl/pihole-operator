@@ -18,10 +18,10 @@ metadata:
   labels:
     app.kubernetes.io/name: pihole-operator
     app.kubernetes.io/managed-by: kustomize
-  name: dnsname-sample-a
+  name: dnsname-sample-a-ipv4
 spec:
   type: A
-  domain: foobar.com
+  domain: foobar4.com
   targetIP: 192.168.178.1
 ---
 # IPv6 example
@@ -31,8 +31,8 @@ metadata:
   labels:
     app.kubernetes.io/name: pihole-operator
     app.kubernetes.io/managed-by: kustomize
-  name: dnsname-sample-a
+  name: dnsname-sample-a-ipv6
 spec:
   type: A
-  domain: foobar.com
+  domain: foobar6.com
   targetIP: 2001:db8::1

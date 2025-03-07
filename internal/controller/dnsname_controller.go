@@ -26,12 +26,15 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/domnikl/pihole-operator/api/v1alpha1"
 	networkingv1alpha1 "github.com/domnikl/pihole-operator/api/v1alpha1"
 	"github.com/domnikl/pihole-operator/internal/pihole"
 )
+
+const finalizerName = "dnsname.networking.liebler.dev/finalizer"
 
 // DNSNameReconciler reconciles a DNSName object
 type DNSNameReconciler struct {
@@ -79,6 +82,31 @@ func (r *DNSNameReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Message: "DNS record is pending",
 	})
 
+	if dnsName.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(dnsName, finalizerName) {
+			dnsName.ObjectMeta.Finalizers = append(dnsName.ObjectMeta.Finalizers, finalizerName)
+			err = r.Update(ctx, dnsName)
+			if err != nil {
+				reqLogger.Error(err, "Failed to update DNSName with finalizer")
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(dnsName, finalizerName) {
+			// Run finalization logic for DNSName
+			reqLogger.Info("Deleting DNS record")
+
+			err = r.cleanupDNSRecord(ctx, dnsName)
+			if err != nil {
+				reqLogger.Error(err, "Failed to cleanup DNS record")
+				return ctrl.Result{}, err
+			}
+		}
+
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{}, nil
+	}
+
 	records, err := r.PiHole.GetDNSRecords()
 	if err != nil {
 		reqLogger.Error(err, "Failed to get DNS records")
@@ -124,6 +152,30 @@ func (r *DNSNameReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	reqLogger.Info("Successfully created DNS record")
 
 	return ctrl.Result{}, nil
+}
+
+func (r *DNSNameReconciler) cleanupDNSRecord(ctx context.Context, dnsName *networkingv1alpha1.DNSName) error {
+	records, err := r.PiHole.GetDNSRecords()
+	if err != nil {
+		return err
+	}
+
+	for _, record := range records {
+		if record.Domain == dnsName.Spec.Domain {
+			err := r.PiHole.DeleteDNSRecord(record)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	controllerutil.RemoveFinalizer(dnsName, finalizerName)
+	err = r.Update(ctx, dnsName)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

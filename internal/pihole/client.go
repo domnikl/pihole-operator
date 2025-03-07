@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/domnikl/pihole-operator/api/v1alpha1"
@@ -16,6 +17,7 @@ type DNSRecord struct {
 	Domain string
 	Target string
 	Type   v1alpha1.DNSRecordType
+	TTL    *int32
 }
 
 type PiHole struct {
@@ -81,11 +83,24 @@ func (p *PiHole) getCNames() ([]DNSRecord, error) {
 
 	var recordsList []DNSRecord
 	for _, record := range records.Config.DNS.CNameRecords {
+		var ttl *int32
 		parts := strings.Split(record, ",")
+
+		// CNAME records have a TTL
+		if len(parts) == 3 {
+			x, err := strconv.ParseInt(parts[2], 10, 32)
+			if err != nil {
+				return nil, err
+			}
+
+			a := int32(x)
+			ttl = &a
+		}
 
 		recordsList = append(recordsList, DNSRecord{
 			Domain: parts[0],
 			Target: parts[1],
+			TTL:    ttl,
 			Type:   v1alpha1.CName,
 		})
 	}
@@ -159,6 +174,38 @@ func (p *PiHole) CreateDNSARecord(domain string, ip v1alpha1.IPAddressStr) error
 
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("failed to create DNS A record with status code %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (p *PiHole) DeleteDNSRecord(record DNSRecord) error {
+	var domain, path string
+	if record.Type == v1alpha1.A {
+		domain = fmt.Sprintf("%s %s", record.Target, record.Domain)
+		path = "hosts"
+	} else if record.Type == v1alpha1.CName {
+		if record.TTL != nil {
+			domain = fmt.Sprintf("%s,%s,%d", record.Domain, record.Target, *record.TTL)
+		} else {
+			domain = fmt.Sprintf("%s,%s", record.Domain, record.Target)
+		}
+
+		path = "cnameRecords"
+	} else {
+		return fmt.Errorf("invalid DNS record type %s", record.Type)
+	}
+
+	resp, err := p.doAuthenticatedRequest(http.MethodDelete, fmt.Sprintf("/config/dns/%s/%s", path, domain), nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		fmt.Printf("failed to delete DNS record: %d - %s/%s", resp.StatusCode, path, domain)
+
+		return fmt.Errorf("failed to delete DNS record with status code %d", resp.StatusCode)
 	}
 
 	return nil
