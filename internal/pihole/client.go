@@ -34,7 +34,7 @@ func (p *PiHole) GetDNSRecords() ([]DNSRecord, error) {
 	// A Records
 	aRecords, err := p.getARecords()
 	if err != nil {
-		return nil, err
+		return []DNSRecord{}, err
 	}
 
 	records = append(records, aRecords...)
@@ -42,7 +42,7 @@ func (p *PiHole) GetDNSRecords() ([]DNSRecord, error) {
 	// CNAME Records
 	cnameRecords, err := p.getCNames()
 	if err != nil {
-		return nil, err
+		return []DNSRecord{}, err
 	}
 
 	records = append(records, cnameRecords...)
@@ -104,12 +104,12 @@ func (p *PiHole) getCNames() ([]DNSRecord, error) {
 func (p *PiHole) getARecords() ([]DNSRecord, error) {
 	resp, err := p.doAuthenticatedRequest(http.MethodGet, "/config/dns/hosts", nil)
 	if err != nil {
-		return nil, err
+		return []DNSRecord{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get DNS records with status code %d", resp.StatusCode)
+		return []DNSRecord{}, fmt.Errorf("failed to get DNS records with status code %d", resp.StatusCode)
 	}
 
 	type response struct {
@@ -122,7 +122,7 @@ func (p *PiHole) getARecords() ([]DNSRecord, error) {
 
 	var records response
 	if err := json.NewDecoder(resp.Body).Decode(&records); err != nil {
-		return nil, err
+		return []DNSRecord{}, err
 	}
 
 	var recordsList []DNSRecord
@@ -266,7 +266,21 @@ func (p *PiHole) doAuthenticatedRequest(method string, path string, body []byte)
 		}
 	}
 
-	return p.doRequest(method, path, body)
+	resp, err := p.doRequest(method, path, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		if err := p.authenticate(); err != nil {
+			return nil, err
+		}
+
+		// do request again with new session id
+		resp, err = p.doRequest(method, path, body)
+	}
+
+	return resp, err
 }
 
 func (p *PiHole) doRequest(method string, path string, body []byte) (*http.Response, error) {
@@ -293,8 +307,6 @@ func (p *PiHole) Close() error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to close session with status code %d", resp.StatusCode)
 	}
-
-	log.Println("PiHole session closed")
 
 	return nil
 }
